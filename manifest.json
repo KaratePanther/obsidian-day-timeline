@@ -1,0 +1,9 @@
+{
+  "id": "day-timeline",
+  "name": "Day Timeline",
+  "version": "0.1.0",
+  "minAppVersion": "1.0.0",
+  "description": "Visual day timeline sidebar for daily note tasks with drag-and-drop scheduling.",
+  "author": "Anton Korolev",
+  "isDesktopOnly": false
+}
