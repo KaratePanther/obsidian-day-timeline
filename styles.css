@@ -133,7 +133,7 @@
   left: 4px;
   right: 4px;
   border-radius: 4px;
-  padding: 4px 6px;
+  padding: 0 6px;
   cursor: pointer;
   overflow: hidden;
   z-index: 1;
@@ -179,27 +179,16 @@
   white-space: nowrap;
 }
 
-.task-block-time {
-  color: var(--text-on-accent);
-  font-size: 10px;
-  opacity: 0.8;
-  margin-top: 2px;
-}
-
 .task-block-resize-top {
-  height: 6px;
+  height: 4px;
   cursor: ns-resize;
   flex-shrink: 0;
-  border-bottom: 2px solid rgba(255, 255, 255, 0.3);
-  margin-bottom: 2px;
 }
 
 .task-block-resize {
-  height: 6px;
+  height: 4px;
   cursor: ns-resize;
   flex-shrink: 0;
-  border-top: 2px solid rgba(255, 255, 255, 0.3);
-  margin-top: 2px;
 }
 
 /* Now line */

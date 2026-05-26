@@ -1,14 +1,16 @@
-import { App, TFile } from "obsidian";
+import { App, Menu, TFile } from "obsidian";
 import { DailyNote, Task, TimeRange } from "./types";
-import { parseDaily, getAllTasks } from "./parser";
+import { parseDaily, getAllTasks, getDisplayText } from "./parser";
 import { addSchedule, removeSchedule, updateSchedule } from "./serializer";
 import {
   RenderedElements,
   yToTime,
+  timeToY,
+  durationToHeight,
   HOUR_HEIGHT,
-  DAY_START,
   DEFAULT_DURATION,
   SNAP_MINUTES,
+  SECTION_COLORS,
   snapToGrid,
 } from "./timeline-renderer";
 
@@ -23,6 +25,7 @@ export class DragHandler {
   private writeTimeout: ReturnType<typeof setTimeout> | null = null;
   private suppressNextModify = false;
   private grabOffsetY = 0;
+  private dragGhost: HTMLElement | null = null;
 
   constructor(
     app: App,
@@ -51,6 +54,43 @@ export class DragHandler {
     this.setupResizeTop();
     this.setupGridDrop();
     this.setupPoolDrop();
+    this.setupContextMenu();
+  }
+
+  private createDragGhost(task: Task, e: DragEvent): void {
+    const ghost = document.createElement("div");
+    ghost.className = "task-block";
+
+    const gridWidth = this.elements.slotsContainer.offsetWidth;
+    ghost.style.width = `${gridWidth - 8}px`;
+    ghost.style.height = `${HOUR_HEIGHT}px`;
+    ghost.style.backgroundColor =
+      SECTION_COLORS[task.section] ?? "var(--text-accent)";
+    ghost.style.position = "fixed";
+    ghost.style.top = "-1000px";
+    ghost.style.left = "-1000px";
+    ghost.style.borderRadius = "4px";
+    ghost.style.padding = "4px 6px";
+    ghost.style.boxShadow = "0 2px 8px rgba(0,0,0,0.25)";
+    ghost.style.zIndex = "9999";
+    ghost.style.opacity = "0.85";
+    ghost.style.pointerEvents = "none";
+
+    const textEl = document.createElement("span");
+    textEl.className = "task-block-text";
+    textEl.textContent = getDisplayText(task).slice(0, 40);
+    ghost.appendChild(textEl);
+
+    document.body.appendChild(ghost);
+    e.dataTransfer!.setDragImage(ghost, gridWidth / 2, 0);
+    this.dragGhost = ghost;
+  }
+
+  private removeDragGhost(): void {
+    if (this.dragGhost) {
+      this.dragGhost.remove();
+      this.dragGhost = null;
+    }
   }
 
   private setupPoolDrag(): void {
@@ -59,18 +99,26 @@ export class DragHandler {
         e.dataTransfer!.setData("text/plain", taskId);
         e.dataTransfer!.setData("application/day-timeline-pool", "1");
         this.grabOffsetY = 0;
+
+        const task = this.findTask(taskId);
+        if (task) this.createDragGhost(task, e);
+
         item.addClass("is-dragging");
       });
       item.addEventListener("dragend", () => {
         item.removeClass("is-dragging");
+        this.removeDragGhost();
       });
     }
   }
 
   private setupBlockDrag(): void {
-    for (const [taskId, block] of this.elements.taskBlocks) {
+    for (const [blockKey, block] of this.elements.taskBlocks) {
       const handle = block.querySelector(".task-block-handle") as HTMLElement;
       if (!handle) continue;
+
+      const taskId = block.dataset.taskId!;
+      const slotIndex = block.dataset.slotIndex ?? "0";
 
       handle.addEventListener("mousedown", (e) => {
         block.setAttribute("draggable", "true");
@@ -80,6 +128,7 @@ export class DragHandler {
       block.addEventListener("dragstart", (e) => {
         e.dataTransfer!.setData("text/plain", taskId);
         e.dataTransfer!.setData("application/day-timeline-block", "1");
+        e.dataTransfer!.setData("application/day-timeline-slot", slotIndex);
         block.addClass("is-dragging");
       });
 
@@ -124,18 +173,34 @@ export class DragHandler {
           start: dropTime,
           end: { hour: Math.floor(endMinutes / 60), minute: endMinutes % 60 },
         };
+
+        const poolItem = this.elements.poolItems.get(taskId);
+        if (poolItem) poolItem.style.display = "none";
+
         await this.writeChange((content) =>
           addSchedule(content, task.lineStart, newTime)
         );
       } else {
-        const duration = this.getTaskDuration(task);
+        const slotIndex = parseInt(e.dataTransfer!.getData("application/day-timeline-slot") || "0");
+        const duration = this.getSlotDuration(task, slotIndex);
         const endMinutes = dropTime.hour * 60 + dropTime.minute + duration;
         const newTime: TimeRange = {
           start: dropTime,
           end: { hour: Math.floor(endMinutes / 60), minute: endMinutes % 60 },
         };
+
+        const blockKey = `${taskId}:${slotIndex}`;
+        const block = this.elements.taskBlocks.get(blockKey);
+        if (block) {
+          block.removeClass("is-dragging");
+          const newTop = timeToY(dropTime.hour, dropTime.minute);
+          const newHeight = durationToHeight(dropTime, newTime.end!);
+          block.style.top = `${newTop}px`;
+          block.style.height = `${Math.max(newHeight, SNAP_MINUTES)}px`;
+        }
+
         await this.writeChange((content) =>
-          updateSchedule(content, task.lineStart, newTime)
+          updateSchedule(content, task.lineStart, newTime, slotIndex)
         );
       }
     });
@@ -162,20 +227,27 @@ export class DragHandler {
       const taskId = e.dataTransfer!.getData("text/plain");
       if (!taskId) return;
 
+      const slotIndex = parseInt(e.dataTransfer!.getData("application/day-timeline-slot") || "0");
+
       const task = this.findTask(taskId);
-      if (!task || !task.scheduledTime) return;
+      if (!task || task.scheduledTimes.length === 0) return;
+
+      const blockKey = `${taskId}:${slotIndex}`;
+      const block = this.elements.taskBlocks.get(blockKey);
+      if (block) block.style.display = "none";
 
       await this.writeChange((content) =>
-        removeSchedule(content, task.lineStart)
+        removeSchedule(content, task.lineStart, slotIndex)
       );
     });
   }
 
   private setupResizeBottom(): void {
-    for (const [taskId, block] of this.elements.taskBlocks) {
+    for (const [blockKey, block] of this.elements.taskBlocks) {
       const resizeHandle = block.querySelector(".task-block-resize") as HTMLElement;
       if (!resizeHandle) continue;
 
+      const slotIndex = parseInt(block.dataset.slotIndex ?? "0");
       let startY = 0;
       let startHeight = 0;
 
@@ -195,23 +267,23 @@ export class DragHandler {
         document.removeEventListener("mouseup", onMouseUp);
         block.removeClass("is-resizing");
 
+        const taskId = block.dataset.taskId!;
         const task = this.findTask(taskId);
-        if (!task || !task.scheduledTime) return;
+        if (!task || task.scheduledTimes.length <= slotIndex) return;
 
+        const tr = task.scheduledTimes[slotIndex];
         const finalHeight = parseFloat(block.style.height);
         const durationMinutes = snapToGrid((finalHeight / HOUR_HEIGHT) * 60);
         const endMinutes =
-          task.scheduledTime.start.hour * 60 +
-          task.scheduledTime.start.minute +
-          durationMinutes;
+          tr.start.hour * 60 + tr.start.minute + durationMinutes;
 
         const newTime: TimeRange = {
-          start: task.scheduledTime.start,
+          start: tr.start,
           end: { hour: Math.floor(endMinutes / 60), minute: endMinutes % 60 },
         };
 
         await this.writeChange((content) =>
-          updateSchedule(content, task.lineStart, newTime)
+          updateSchedule(content, task.lineStart, newTime, slotIndex)
         );
       };
 
@@ -228,10 +300,11 @@ export class DragHandler {
   }
 
   private setupResizeTop(): void {
-    for (const [taskId, block] of this.elements.taskBlocks) {
+    for (const [blockKey, block] of this.elements.taskBlocks) {
       const resizeHandle = block.querySelector(".task-block-resize-top") as HTMLElement;
       if (!resizeHandle) continue;
 
+      const slotIndex = parseInt(block.dataset.slotIndex ?? "0");
       let startY = 0;
       let origTop = 0;
       let origHeight = 0;
@@ -239,7 +312,6 @@ export class DragHandler {
       const onMouseMove = (e: MouseEvent) => {
         e.preventDefault();
         const dy = e.clientY - startY;
-        const newTop = origTop + dy;
         const newHeight = origHeight - dy;
 
         const rawMinutes = (newHeight / HOUR_HEIGHT) * 60;
@@ -256,8 +328,9 @@ export class DragHandler {
         document.removeEventListener("mouseup", onMouseUp);
         block.removeClass("is-resizing");
 
+        const taskId = block.dataset.taskId!;
         const task = this.findTask(taskId);
-        if (!task || !task.scheduledTime) return;
+        if (!task || task.scheduledTimes.length <= slotIndex) return;
 
         const finalTop = parseFloat(block.style.top);
         const finalHeight = parseFloat(block.style.height);
@@ -272,7 +345,7 @@ export class DragHandler {
         };
 
         await this.writeChange((content) =>
-          updateSchedule(content, task.lineStart, newTime)
+          updateSchedule(content, task.lineStart, newTime, slotIndex)
         );
       };
 
@@ -289,12 +362,62 @@ export class DragHandler {
     }
   }
 
-  private getTaskDuration(task: Task): number {
-    if (!task.scheduledTime) return DEFAULT_DURATION;
-    const s = task.scheduledTime.start;
-    const e = task.scheduledTime.end;
+  private setupContextMenu(): void {
+    for (const [blockKey, block] of this.elements.taskBlocks) {
+      block.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const taskId = block.dataset.taskId!;
+        const slotIndex = parseInt(block.dataset.slotIndex ?? "0");
+        const task = this.findTask(taskId);
+        if (!task) return;
+
+        const menu = new Menu();
+
+        menu.addItem((item) => {
+          item.setTitle("Add another time slot");
+          item.setIcon("plus");
+          item.onClick(async () => {
+            const lastSlot = task.scheduledTimes[task.scheduledTimes.length - 1];
+            const slotEnd = lastSlot.end ?? {
+              hour: lastSlot.start.hour + 1,
+              minute: lastSlot.start.minute,
+            };
+            const newEndMinutes = slotEnd.hour * 60 + slotEnd.minute + DEFAULT_DURATION;
+            const newTime: TimeRange = {
+              start: { hour: slotEnd.hour, minute: slotEnd.minute },
+              end: { hour: Math.floor(newEndMinutes / 60), minute: newEndMinutes % 60 },
+            };
+            await this.writeChange((content) =>
+              addSchedule(content, task.lineStart, newTime)
+            );
+          });
+        });
+
+        menu.addSeparator();
+
+        menu.addItem((item) => {
+          item.setTitle("Remove from calendar");
+          item.setIcon("trash");
+          item.onClick(async () => {
+            await this.writeChange((content) =>
+              removeSchedule(content, task.lineStart, slotIndex)
+            );
+          });
+        });
+
+        menu.showAtMouseEvent(e);
+      });
+    }
+  }
+
+  private getSlotDuration(task: Task, slotIndex: number): number {
+    const tr = task.scheduledTimes[slotIndex];
+    if (!tr) return DEFAULT_DURATION;
+    const e = tr.end;
     if (!e) return DEFAULT_DURATION;
-    return (e.hour * 60 + e.minute) - (s.hour * 60 + s.minute);
+    return (e.hour * 60 + e.minute) - (tr.start.hour * 60 + tr.start.minute);
   }
 
   private findTask(taskId: string): Task | undefined {

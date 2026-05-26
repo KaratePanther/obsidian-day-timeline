@@ -7,17 +7,17 @@ export const DAY_END = 23;
 export const SNAP_MINUTES = 15;
 export const DEFAULT_DURATION = 60;
 
-const SECTION_COLORS: Record<string, string> = {
+export const SECTION_COLORS: Record<string, string> = {
   Highlight: "var(--interactive-accent)",
   "Key Tasks": "var(--text-accent)",
   "Admin / Optional": "var(--text-muted)",
 };
 
-function timeToY(hour: number, minute: number): number {
+export function timeToY(hour: number, minute: number): number {
   return (hour - DAY_START) * HOUR_HEIGHT + (minute / 60) * HOUR_HEIGHT;
 }
 
-function durationToHeight(start: TimeRange["start"], end: TimeRange["start"]): number {
+export function durationToHeight(start: TimeRange["start"], end: TimeRange["start"]): number {
   const startMin = start.hour * 60 + start.minute;
   const endMin = end.hour * 60 + end.minute;
   return ((endMin - startMin) / 60) * HOUR_HEIGHT;
@@ -119,37 +119,38 @@ export function renderTimeline(
   if (daily) {
     const scheduled = getScheduledTasks(daily);
     for (const task of scheduled) {
-      const tr = task.scheduledTime!;
-      const end = tr.end ?? { hour: tr.start.hour + 1, minute: tr.start.minute };
-      const top = timeToY(tr.start.hour, tr.start.minute);
-      const height = durationToHeight(tr.start, end);
+      for (let si = 0; si < task.scheduledTimes.length; si++) {
+        const tr = task.scheduledTimes[si];
+        const end = tr.end ?? { hour: tr.start.hour + 1, minute: tr.start.minute };
+        const top = timeToY(tr.start.hour, tr.start.minute);
+        const height = durationToHeight(tr.start, end);
 
-      const block = slotsContainer.createDiv({ cls: "task-block" });
-      block.setAttribute("draggable", "false");
-      block.dataset.taskId = task.id;
-      block.dataset.lineStart = String(task.lineStart);
+        const block = slotsContainer.createDiv({ cls: "task-block" });
+        block.setAttribute("draggable", "false");
+        block.dataset.taskId = task.id;
+        block.dataset.slotIndex = String(si);
+        block.dataset.lineStart = String(task.lineStart);
 
-      block.style.top = `${top}px`;
-      block.style.height = `${Math.max(height, SNAP_MINUTES)}px`;
+        block.style.top = `${top}px`;
+        block.style.height = `${Math.max(height, SNAP_MINUTES)}px`;
 
-      const color = SECTION_COLORS[task.section] ?? "var(--text-accent)";
-      block.style.backgroundColor = color;
+        const color = SECTION_COLORS[task.section] ?? "var(--text-accent)";
+        block.style.backgroundColor = color;
 
-      const resizeTop = block.createDiv({ cls: "task-block-resize-top" });
+        block.createDiv({ cls: "task-block-resize-top" });
 
-      const handle = block.createDiv({ cls: "task-block-handle" });
-      handle.createSpan({ cls: "task-block-text", text: truncate(getDisplayText(task), 40) });
+        const handle = block.createDiv({ cls: "task-block-handle" });
+        const label = task.scheduledTimes.length > 1
+          ? `${truncate(getDisplayText(task), 35)} (${si + 1}/${task.scheduledTimes.length})`
+          : truncate(getDisplayText(task), 40);
+        handle.createSpan({ cls: "task-block-text", text: label });
 
-      const timeLabel = block.createDiv({ cls: "task-block-time" });
-      const startStr = `${String(tr.start.hour).padStart(2, "0")}:${String(tr.start.minute).padStart(2, "0")}`;
-      const endStr = `${String(end.hour).padStart(2, "0")}:${String(end.minute).padStart(2, "0")}`;
-      timeLabel.setText(`${startStr} – ${endStr}`);
+        block.createDiv({ cls: "task-block-resize" });
 
-      const resizeHandle = block.createDiv({ cls: "task-block-resize" });
+        if (task.checked) block.addClass("is-completed");
 
-      if (task.checked) block.addClass("is-completed");
-
-      taskBlocks.set(task.id, block);
+        taskBlocks.set(`${task.id}:${si}`, block);
+      }
     }
   }
 

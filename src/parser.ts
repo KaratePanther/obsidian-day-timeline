@@ -4,17 +4,20 @@ const SECTION_RE = /^##\s+(Highlight|Key Tasks|Admin\s*\/?\s*Optional)/;
 const STOP_SECTION_RE = /^##\s+Notes/;
 const TASK_RE = /^- \[([ x])\]\s+(.+)$/;
 const SUBTASK_RE = /^\t+- \[([ x])\]\s+(.+)$/;
-const SCHEDULED_RE = /@(\d{2}:\d{2})-(\d{2}:\d{2})/;
 
 function parseTime(s: string): { hour: number; minute: number } {
   const [h, m] = s.split(":").map(Number);
   return { hour: h, minute: m };
 }
 
-function parseScheduledTime(line: string): TimeRange | null {
-  const m = line.match(SCHEDULED_RE);
-  if (!m) return null;
-  return { start: parseTime(m[1]), end: parseTime(m[2]) };
+function parseScheduledTimes(line: string): TimeRange[] {
+  const times: TimeRange[] = [];
+  const re = /@(\d{2}:\d{2})-(\d{2}:\d{2})/g;
+  let m;
+  while ((m = re.exec(line)) !== null) {
+    times.push({ start: parseTime(m[1]), end: parseTime(m[2]) });
+  }
+  return times;
 }
 
 export function parseDaily(content: string, filePath: string): DailyNote {
@@ -66,7 +69,7 @@ export function parseDaily(content: string, filePath: string): DailyNote {
         id: `${currentSection.heading}-${currentSection.tasks.length}`,
         text: taskMatch[2],
         checked: taskMatch[1] === "x",
-        scheduledTime: parseScheduledTime(line),
+        scheduledTimes: parseScheduledTimes(line),
         tags: extractTags(taskMatch[2]),
         subtaskLines,
         lineStart: i,
@@ -90,7 +93,7 @@ function extractTags(text: string): string[] {
 
 export function getDisplayText(task: Task): string {
   let text = task.text;
-  text = text.replace(SCHEDULED_RE, "").trim();
+  text = text.replace(/@\d{2}:\d{2}-\d{2}:\d{2}/g, "").trim();
   text = text.replace(/#[\w-]+/g, "").trim();
   text = text.replace(
     /\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{2}\s+\d{2}:\d{2}[-–].*/,
@@ -105,9 +108,9 @@ export function getAllTasks(daily: DailyNote): Task[] {
 }
 
 export function getScheduledTasks(daily: DailyNote): Task[] {
-  return getAllTasks(daily).filter((t) => t.scheduledTime !== null);
+  return getAllTasks(daily).filter((t) => t.scheduledTimes.length > 0);
 }
 
 export function getUnscheduledTasks(daily: DailyNote): Task[] {
-  return getAllTasks(daily).filter((t) => t.scheduledTime === null);
+  return getAllTasks(daily).filter((t) => t.scheduledTimes.length === 0);
 }

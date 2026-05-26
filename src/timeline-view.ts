@@ -93,11 +93,12 @@ export class DayTimelineView extends ItemView {
       ...this.elements.poolItems.entries(),
     ];
 
-    for (const [taskId, el] of allBlocks) {
+    for (const [_key, el] of allBlocks) {
       el.addEventListener("click", (e) => {
         const targetCls = (e.target as HTMLElement).className;
         if (targetCls.includes("task-block-resize")) return;
 
+        const taskId = el.dataset.taskId ?? _key;
         const task = getAllTasks(this.daily!).find((t) => t.id === taskId);
         if (!task) return;
 

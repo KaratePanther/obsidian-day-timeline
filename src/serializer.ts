@@ -1,6 +1,5 @@
 import { TimeRange } from "./types";
 
-const SCHEDULED_RE = /@(\d{2}:\d{2})-(\d{2}:\d{2})/;
 const TAG_RE = /#[\w-]+/;
 
 function formatTime(t: { hour: number; minute: number }): string {
@@ -34,29 +33,37 @@ export function addSchedule(
   return lines.join("\n");
 }
 
-export function removeSchedule(content: string, lineNum: number): string {
+export function removeSchedule(
+  content: string,
+  lineNum: number,
+  slotIndex: number = 0
+): string {
   const lines = content.split("\n");
   const line = lines[lineNum];
   if (!line) return content;
 
-  lines[lineNum] = line.replace(SCHEDULED_RE, "").replace(/  +/g, " ").trimEnd();
+  let matchIdx = 0;
+  lines[lineNum] = line.replace(/@\d{2}:\d{2}-\d{2}:\d{2}/g, (match) => {
+    return matchIdx++ === slotIndex ? "" : match;
+  });
+  lines[lineNum] = lines[lineNum].replace(/  +/g, " ").trimEnd();
   return lines.join("\n");
 }
 
 export function updateSchedule(
   content: string,
   lineNum: number,
-  time: TimeRange
+  time: TimeRange,
+  slotIndex: number = 0
 ): string {
   const lines = content.split("\n");
   const line = lines[lineNum];
   if (!line) return content;
 
   const annotation = formatTimeRange(time);
-
-  if (SCHEDULED_RE.test(line)) {
-    lines[lineNum] = line.replace(SCHEDULED_RE, annotation);
-  }
-
+  let matchIdx = 0;
+  lines[lineNum] = line.replace(/@\d{2}:\d{2}-\d{2}:\d{2}/g, (match) => {
+    return matchIdx++ === slotIndex ? annotation : match;
+  });
   return lines.join("\n");
 }

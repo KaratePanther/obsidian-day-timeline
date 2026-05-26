@@ -7,7 +7,7 @@ export interface Task {
   id: string;
   text: string;
   checked: boolean;
-  scheduledTime: TimeRange | null;
+  scheduledTimes: TimeRange[];
   tags: string[];
   subtaskLines: string[];
   lineStart: number;
