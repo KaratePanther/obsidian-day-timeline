@@ -57,12 +57,17 @@ export class DragHandler {
     this.setupContextMenu();
   }
 
-  private createDragGhost(task: Task, e: DragEvent): void {
+  private createDragGhost(
+    task: Task,
+    e: DragEvent,
+    sourceEl?: HTMLElement
+  ): void {
     const ghost = document.createElement("div");
     ghost.className = "task-block";
 
     const gridWidth = this.elements.slotsContainer.offsetWidth;
-    ghost.style.width = `${gridWidth - 8}px`;
+    const ghostWidth = gridWidth - 8;
+    ghost.style.width = `${ghostWidth}px`;
     ghost.style.height = `${HOUR_HEIGHT}px`;
     ghost.style.backgroundColor =
       SECTION_COLORS[task.section] ?? "var(--text-accent)";
@@ -82,7 +87,14 @@ export class DragHandler {
     ghost.appendChild(textEl);
 
     document.body.appendChild(ghost);
-    e.dataTransfer!.setDragImage(ghost, gridWidth / 2, 0);
+
+    let offsetX = 4;
+    if (sourceEl) {
+      const srcRect = sourceEl.getBoundingClientRect();
+      const grabX = e.clientX - srcRect.left;
+      offsetX = Math.max(4, Math.min(grabX, ghostWidth - 4));
+    }
+    e.dataTransfer!.setDragImage(ghost, offsetX, 0);
     this.dragGhost = ghost;
   }
 
@@ -101,7 +113,7 @@ export class DragHandler {
         this.grabOffsetY = 0;
 
         const task = this.findTask(taskId);
-        if (task) this.createDragGhost(task, e);
+        if (task) this.createDragGhost(task, e, item);
 
         item.addClass("is-dragging");
       });
@@ -129,6 +141,10 @@ export class DragHandler {
         e.dataTransfer!.setData("text/plain", taskId);
         e.dataTransfer!.setData("application/day-timeline-block", "1");
         e.dataTransfer!.setData("application/day-timeline-slot", slotIndex);
+        e.dataTransfer!.setData(
+          "application/day-timeline-line",
+          block.dataset.lineStart ?? ""
+        );
         block.addClass("is-dragging");
       });
 
@@ -141,46 +157,68 @@ export class DragHandler {
 
   private setupGridDrop(): void {
     const grid = this.elements.slotsContainer;
+    const dropZone = grid.parentElement ?? grid;
 
-    grid.addEventListener("dragover", (e) => {
+    dropZone.addEventListener("dragover", (e) => {
       e.preventDefault();
       e.dataTransfer!.dropEffect = "move";
       grid.addClass("drag-over");
     });
 
-    grid.addEventListener("dragleave", () => {
+    dropZone.addEventListener("dragleave", (e) => {
+      const related = e.relatedTarget as HTMLElement | null;
+      if (related && dropZone.contains(related)) return;
       grid.removeClass("drag-over");
     });
 
-    grid.addEventListener("drop", async (e) => {
+    dropZone.addEventListener("drop", async (e) => {
       e.preventDefault();
       grid.removeClass("drag-over");
 
-      const taskId = e.dataTransfer!.getData("text/plain");
       const isFromPool = e.dataTransfer!.types.includes("application/day-timeline-pool");
-      if (!taskId) return;
+      const isFromEditor = e.dataTransfer!.types.includes("application/day-timeline-editor");
+      const isFromBlock = e.dataTransfer!.types.includes("application/day-timeline-block");
+
+      if (isFromEditor) this.grabOffsetY = 0;
 
       const rect = grid.getBoundingClientRect();
-      const rawY = e.clientY - rect.top + grid.scrollTop - this.grabOffsetY;
+      const rawY = e.clientY - rect.top - this.grabOffsetY;
       const dropTime = yToTime(Math.max(0, rawY));
 
-      const task = this.findTask(taskId);
+      let task: Task | undefined;
+
+      if (isFromEditor) {
+        const editorData = JSON.parse(
+          e.dataTransfer!.getData("application/day-timeline-editor")
+        );
+        task = getAllTasks(this.daily).find(
+          (t) => t.lineStart === editorData.lineStart
+        );
+      } else {
+        const taskId = e.dataTransfer!.getData("text/plain");
+        if (!taskId) return;
+        task = this.findTask(taskId);
+      }
+
       if (!task) return;
 
-      if (isFromPool) {
+      if (isFromPool || isFromEditor) {
         const endMinutes = dropTime.hour * 60 + dropTime.minute + DEFAULT_DURATION;
         const newTime: TimeRange = {
           start: dropTime,
           end: { hour: Math.floor(endMinutes / 60), minute: endMinutes % 60 },
         };
 
-        const poolItem = this.elements.poolItems.get(taskId);
-        if (poolItem) poolItem.style.display = "none";
+        if (isFromPool) {
+          const poolItem = this.elements.poolItems.get(task.id);
+          if (poolItem) poolItem.style.display = "none";
+        }
 
-        await this.writeChange((content) =>
-          addSchedule(content, task.lineStart, newTime)
+        await this.writeChange(
+          (content) => addSchedule(content, task!.lineStart, newTime),
+          true
         );
-      } else {
+      } else if (isFromBlock) {
         const slotIndex = parseInt(e.dataTransfer!.getData("application/day-timeline-slot") || "0");
         const duration = this.getSlotDuration(task, slotIndex);
         const endMinutes = dropTime.hour * 60 + dropTime.minute + duration;
@@ -189,7 +227,7 @@ export class DragHandler {
           end: { hour: Math.floor(endMinutes / 60), minute: endMinutes % 60 },
         };
 
-        const blockKey = `${taskId}:${slotIndex}`;
+        const blockKey = `${task.id}:${slotIndex}`;
         const block = this.elements.taskBlocks.get(blockKey);
         if (block) {
           block.removeClass("is-dragging");
@@ -199,8 +237,9 @@ export class DragHandler {
           block.style.height = `${Math.max(newHeight, SNAP_MINUTES)}px`;
         }
 
-        await this.writeChange((content) =>
-          updateSchedule(content, task.lineStart, newTime, slotIndex)
+        await this.writeChange(
+          (content) => updateSchedule(content, task!.lineStart, newTime, slotIndex),
+          true
         );
       }
     });
@@ -236,8 +275,9 @@ export class DragHandler {
       const block = this.elements.taskBlocks.get(blockKey);
       if (block) block.style.display = "none";
 
-      await this.writeChange((content) =>
-        removeSchedule(content, task.lineStart, slotIndex)
+      await this.writeChange(
+        (content) => removeSchedule(content, task.lineStart, slotIndex),
+        true
       );
     });
   }
@@ -389,8 +429,9 @@ export class DragHandler {
               start: { hour: slotEnd.hour, minute: slotEnd.minute },
               end: { hour: Math.floor(newEndMinutes / 60), minute: newEndMinutes % 60 },
             };
-            await this.writeChange((content) =>
-              addSchedule(content, task.lineStart, newTime)
+            await this.writeChange(
+              (content) => addSchedule(content, task.lineStart, newTime),
+              true
             );
           });
         });
@@ -401,8 +442,9 @@ export class DragHandler {
           item.setTitle("Remove from calendar");
           item.setIcon("trash");
           item.onClick(async () => {
-            await this.writeChange((content) =>
-              removeSchedule(content, task.lineStart, slotIndex)
+            await this.writeChange(
+              (content) => removeSchedule(content, task.lineStart, slotIndex),
+              true
             );
           });
         });
@@ -425,13 +467,14 @@ export class DragHandler {
   }
 
   private async writeChange(
-    modify: (content: string) => string
+    modify: (content: string) => string,
+    immediate = false
   ): Promise<void> {
     if (this.writeTimeout) {
       clearTimeout(this.writeTimeout);
     }
 
-    this.writeTimeout = setTimeout(async () => {
+    const doWrite = async () => {
       const content = await this.app.vault.read(this.file);
       const newContent = modify(content);
       if (newContent !== content) {
@@ -441,6 +484,12 @@ export class DragHandler {
         this.daily = newDaily;
         this.onRefresh();
       }
-    }, 150);
+    };
+
+    if (immediate) {
+      await doWrite();
+    } else {
+      this.writeTimeout = setTimeout(doWrite, 150);
+    }
   }
 }

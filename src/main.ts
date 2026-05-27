@@ -1,7 +1,10 @@
 import { Plugin, TFile, WorkspaceLeaf } from "obsidian";
 import { DayTimelineView, VIEW_TYPE } from "./timeline-view";
+import { createEditorExtension } from "./editor-extension";
 
 export default class DayTimelinePlugin extends Plugin {
+  private modifyTimeout: ReturnType<typeof setTimeout> | null = null;
+
   async onload(): Promise<void> {
     this.registerView(VIEW_TYPE, (leaf) => new DayTimelineView(leaf));
 
@@ -15,6 +18,8 @@ export default class DayTimelinePlugin extends Plugin {
       callback: () => this.activateView(),
     });
 
+    this.registerEditorExtension(createEditorExtension());
+
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", () => {
         this.refreshTimeline();
@@ -27,7 +32,8 @@ export default class DayTimelinePlugin extends Plugin {
         const view = this.getTimelineView();
         if (!view) return;
         if (view.handler?.shouldSuppressModify) return;
-        this.refreshTimeline();
+        if (this.modifyTimeout) clearTimeout(this.modifyTimeout);
+        this.modifyTimeout = setTimeout(() => this.refreshTimeline(), 80);
       })
     );
 

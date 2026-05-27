@@ -134,7 +134,7 @@
   right: 4px;
   border-radius: 4px;
   padding: 0 6px;
-  cursor: pointer;
+  cursor: grab;
   overflow: hidden;
   z-index: 1;
   display: flex;
@@ -211,4 +211,62 @@
   height: 8px;
   background: var(--text-error);
   border-radius: 50%;
+}
+
+/* Editor drag handles */
+.day-timeline-editor-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  padding: 0 4px;
+  margin-left: -4px;
+  cursor: grab;
+  color: var(--text-faint);
+  opacity: 0;
+  user-select: none;
+  font-size: 12px;
+  vertical-align: middle;
+}
+
+.cm-line:hover .day-timeline-editor-handle {
+  opacity: 0.5;
+}
+
+.day-timeline-editor-handle:hover {
+  opacity: 1 !important;
+  color: var(--text-muted);
+}
+
+.day-timeline-editor-handle.is-dragging {
+  opacity: 0.3;
+}
+
+/* Editor drop indicator */
+.day-timeline-drop-indicator {
+  position: fixed;
+  height: 2px;
+  background: var(--interactive-accent);
+  z-index: 100;
+  pointer-events: none;
+  border-radius: 1px;
+}
+
+/* Editor drag ghost */
+.day-timeline-editor-ghost {
+  position: fixed;
+  top: -1000px;
+  left: -1000px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 0.9;
+  white-space: nowrap;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
 }
