@@ -1,40 +1,33 @@
 # Day Timeline
 
-An Obsidian sidebar plugin that renders your daily note's tasks as a visual day timeline, with drag-and-drop scheduling between an unscheduled pool and timed slots.
+An Obsidian sidebar plugin that renders your daily note's tasks and time blocks as a visual day timeline, with a focus timer and drag-and-drop scheduling.
 
-## What it does
+## Features
 
-- Adds a **Day Timeline** sidebar view (right pane) plus a ribbon icon (`calendar-clock`) and an **Open Day Timeline** command.
-- Reads the **active daily note** (`daily notes/YYYY-MM-DD.md`) and parses tasks from the `Highlight`, `Key Tasks`, and `Admin / Optional` sections (parsing stops at the `Notes` heading).
-- Tasks annotated with `@HH:MM-HH:MM` render as **scheduled blocks** on the timeline; unannotated tasks sit in an **unscheduled pool**.
-- Draws a live **"now" line** that updates every minute.
-- **Click a block** to jump the editor cursor to that task's line.
-- Refreshes automatically on file edits (debounced) and when the active note changes.
+- **Sidebar view** (right pane) + ribbon icon (`calendar-clock`) + **Open Day Timeline** command.
+- Reads the **active daily note** (`daily notes/YYYY-MM-DD.md`) and renders:
+  - Tasks from `Highlight`, `Key Tasks`, `Admin / Optional` (parsing stops at `Notes`).
+  - Plain-bullet time blocks from a `## Schedule` section.
+- **Focus timer** in the header: click the time to set minutes (1–180, persisted to `localStorage`), `▶/⏸` play/pause, `↺` reset, ascending chime on completion.
+- **Unscheduled pool** (tasks + schedule blocks), resizable by dragging its handle.
+- **Drag-and-drop scheduling**: drag from the pool onto the timeline to schedule; drag a block to move it; drag its top/bottom edge to resize; drag a block back to the pool to unschedule. 15-minute snapping.
+- **Editor drag handles** (`⠟` gutter widget): drag a task/schedule line straight from the markdown editor onto the timeline, or reorder lines; drag a timeline block into the editor to remove its time.
+- **Quick-add**: right-click empty timeline → add a Schedule block (presets `Lunch / Unwind time / Break / Exercise / Coffee`, or a custom name).
+- **Now line** (updates each minute); click any block to jump the editor cursor to its line.
 
 ## Scheduling model
 
-- A task can hold **multiple time slots** (e.g. `@09:00-10:00 @14:00-14:30`), each rendered as its own block.
-- Schedule annotations are written **before any `#tag`** on the line, so tags stay at the end.
-- The serializer supports add / update / remove of individual slots by index, preserving the rest of the line.
+- Times are stored inline as `@HH:MM-HH:MM`, written **before any `#tag`** on the line.
+- A task can hold **multiple slots** (e.g. `@09:00-10:00 @14:00-14:30`), each its own block.
+- Add / update / remove operate on a single slot by index, preserving the rest of the line.
 
-## How to use
+## Architecture
 
-1. Open a daily note (`daily notes/YYYY-MM-DD.md`).
-2. Open the timeline (ribbon icon or command palette → *Open Day Timeline*).
-3. Drag a task from the pool onto the timeline to schedule it; drag a block to move it; drag its edge to resize.
-4. Right-click a block for the context menu; edits write `@HH:MM-HH:MM` back into the markdown.
-
-## Recent work
-
-- **Editor drag extension + cross-panel scheduling** — drag between the markdown editor and the timeline view (CodeMirror editor extension).
-- **Multi-slot scheduling, context menu, drag ghost preview** — multiple time slots per task, right-click actions, and a live ghost while dragging.
-- **Initial MVP** — day timeline sidebar, daily-note parsing, now line, click-to-navigate.
-
-## Build
+- **Source of truth: `src/main.ts`** — a single self-contained file (runtime JS in a `.ts` wrapper, `// @ts-nocheck`).
+- **`main.js` is a generated build artifact** (gitignored) produced by esbuild and auto-copied to the vault plugin folder. **Do not hand-edit `main.js`** — edit `src/main.ts` and rebuild.
 
 ```bash
 npm install
-npm run build   # esbuild → main.js
+npm run build   # esbuild → main.js (minified) + copy to vault
+npm run dev     # watch mode (sourcemap, no minify)
 ```
-
-Outputs `main.js` alongside `manifest.json` and `styles.css` for Obsidian to load.

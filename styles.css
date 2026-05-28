@@ -1,3 +1,4 @@
+/* ── Container ──────────────────────────────────────────────────── */
 .day-timeline-container {
   display: flex;
   flex-direction: column;
@@ -6,27 +7,106 @@
   font-size: 12px;
 }
 
+/* ── Header ─────────────────────────────────────────────────────── */
 .day-timeline-header {
-  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
   border-bottom: 1px solid var(--background-modifier-border);
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .day-timeline-date {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--text-normal);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
 }
 
-/* Pool */
+/* ── Timer ──────────────────────────────────────────────────────── */
+.day-timeline-timer {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  padding: 3px 7px;
+}
+
+.timer-time {
+  font-family: var(--font-monospace);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-normal);
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  min-width: 38px;
+  text-align: center;
+  border-radius: 3px;
+  padding: 0 2px;
+  transition: background 0.1s;
+}
+.timer-time:hover {
+  background: var(--background-modifier-hover);
+}
+
+.timer-input {
+  font-family: var(--font-monospace);
+  font-size: 13px;
+  font-weight: 600;
+  width: 38px;
+  text-align: center;
+  background: var(--background-modifier-form-field);
+  border: 1px solid var(--interactive-accent);
+  border-radius: 3px;
+  color: var(--text-normal);
+  padding: 0 2px;
+  outline: none;
+}
+
+.timer-btn {
+  font-size: 12px;
+  cursor: pointer;
+  padding: 1px 3px;
+  border-radius: 3px;
+  color: var(--text-muted);
+  transition: color 0.1s, background 0.1s;
+  line-height: 1;
+}
+.timer-btn:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.timer-reset {
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text-faint);
+  padding: 0 2px;
+  border-radius: 3px;
+  line-height: 1;
+  transition: color 0.1s;
+}
+.timer-reset:hover {
+  color: var(--text-muted);
+}
+
+/* ── Pool ───────────────────────────────────────────────────────── */
 .day-timeline-pool {
   padding: 8px;
-  border-bottom: 2px solid var(--background-modifier-border);
-  max-height: 200px;
+  border-bottom: 1px solid var(--background-modifier-border);
   overflow-y: auto;
   flex-shrink: 0;
   transition: background-color 0.15s;
 }
-
 .day-timeline-pool.drag-over {
   background-color: var(--background-modifier-hover);
 }
@@ -51,19 +131,11 @@
   cursor: grab;
   transition: background-color 0.1s, opacity 0.1s;
 }
-
 .day-timeline-pool-item:hover {
   background-color: var(--background-modifier-hover);
 }
-
-.day-timeline-pool-item.is-dragging {
-  opacity: 0.4;
-}
-
-.day-timeline-pool-item.is-completed {
-  opacity: 0.5;
-  text-decoration: line-through;
-}
+.day-timeline-pool-item.is-dragging  { opacity: 0.4; }
+.day-timeline-pool-item.is-completed { opacity: 0.5; text-decoration: line-through; }
 
 .pool-item-checkbox {
   font-family: var(--font-monospace);
@@ -71,7 +143,6 @@
   color: var(--text-muted);
   flex-shrink: 0;
 }
-
 .pool-item-text {
   flex: 1;
   min-width: 0;
@@ -80,7 +151,6 @@
   white-space: nowrap;
   color: var(--text-normal);
 }
-
 .pool-item-tags {
   font-size: 10px;
   color: var(--text-muted);
@@ -88,7 +158,56 @@
   white-space: nowrap;
 }
 
-/* Grid */
+/* Schedule items in pool */
+.day-timeline-pool-item.is-schedule-item {
+  border-left: 3px solid var(--text-faint);
+  font-style: italic;
+  opacity: 0.8;
+}
+.day-timeline-pool-item.is-schedule-item .pool-item-text {
+  color: var(--text-muted);
+}
+.pool-item-schedule-dot {
+  font-size: 16px;
+  color: var(--text-faint);
+  flex-shrink: 0;
+  line-height: 1;
+  margin-top: 1px;
+}
+.day-timeline-pool-divider {
+  height: 1px;
+  background: var(--background-modifier-border);
+  margin: 6px 0;
+}
+
+/* ── Pool resize handle ─────────────────────────────────────────── */
+.day-timeline-pool-resize {
+  height: 8px;
+  cursor: ns-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.1s;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.day-timeline-pool-resize:hover,
+.day-timeline-pool-resize.is-resizing {
+  background: var(--background-modifier-hover);
+}
+.day-timeline-pool-resize-grip {
+  width: 28px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--background-modifier-border);
+  pointer-events: none;
+}
+.day-timeline-pool-resize:hover .day-timeline-pool-resize-grip,
+.day-timeline-pool-resize.is-resizing .day-timeline-pool-resize-grip {
+  background: var(--text-faint);
+}
+
+/* ── Grid ───────────────────────────────────────────────────────── */
 .day-timeline-grid {
   display: flex;
   flex: 1;
@@ -122,12 +241,11 @@
   box-sizing: border-box;
   border-top: 1px solid var(--background-modifier-border-hover);
 }
-
 .day-timeline-slots.drag-over .hour-slot:hover {
   background-color: var(--background-modifier-hover);
 }
 
-/* Task blocks */
+/* ── Task blocks ────────────────────────────────────────────────── */
 .task-block {
   position: absolute;
   left: 4px;
@@ -141,26 +259,12 @@
   flex-direction: column;
   opacity: 0.85;
   transition: opacity 0.1s, box-shadow 0.1s;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
 }
-
-.task-block:hover {
-  opacity: 1;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-}
-
-.task-block.is-dragging {
-  opacity: 0.4;
-  z-index: 10;
-}
-
-.task-block.is-resizing {
-  z-index: 10;
-}
-
-.task-block.is-completed {
-  opacity: 0.4;
-}
+.task-block:hover    { opacity: 1; box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
+.task-block.is-dragging  { opacity: 0.4; z-index: 10; }
+.task-block.is-resizing  { z-index: 10; }
+.task-block.is-completed { opacity: 0.4; }
 
 .task-block-handle {
   cursor: grab;
@@ -168,7 +272,6 @@
   min-height: 0;
   overflow: hidden;
 }
-
 .task-block-text {
   color: var(--text-on-accent);
   font-weight: 500;
@@ -178,42 +281,52 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 .task-block-resize-top {
   height: 4px;
   cursor: ns-resize;
   flex-shrink: 0;
 }
-
 .task-block-resize {
   height: 4px;
   cursor: ns-resize;
   flex-shrink: 0;
 }
 
-/* Now line */
+/* ── Time blocks (non-task) ─────────────────────────────────────── */
+.time-block {
+  background-color: var(--background-modifier-border) !important;
+  opacity: 0.75;
+  border-left: 3px solid var(--text-faint);
+}
+.time-block:hover { opacity: 0.9; }
+.time-block .task-block-text {
+  color: var(--text-muted);
+  font-style: italic;
+}
+.time-block .task-block-resize-top,
+.time-block .task-block-resize {
+  background: rgba(0,0,0,0.06);
+}
+
+/* ── Now line ───────────────────────────────────────────────────── */
 .now-line {
   position: absolute;
-  left: 0;
-  right: 0;
+  left: 0; right: 0;
   height: 0;
   border-top: 2px solid var(--text-error);
   z-index: 5;
   pointer-events: none;
 }
-
 .now-line::before {
   content: "";
   position: absolute;
-  left: -3px;
-  top: -5px;
-  width: 8px;
-  height: 8px;
+  left: -3px; top: -5px;
+  width: 8px; height: 8px;
   background: var(--text-error);
   border-radius: 50%;
 }
 
-/* Editor drag handles */
+/* ── Editor drag handles ────────────────────────────────────────── */
 .day-timeline-editor-handle {
   display: inline-flex;
   align-items: center;
@@ -228,21 +341,11 @@
   font-size: 12px;
   vertical-align: middle;
 }
+.cm-line:hover .day-timeline-editor-handle { opacity: 0.5; }
+.day-timeline-editor-handle:hover          { opacity: 1 !important; color: var(--text-muted); }
+.day-timeline-editor-handle.is-dragging    { opacity: 0.3; }
 
-.cm-line:hover .day-timeline-editor-handle {
-  opacity: 0.5;
-}
-
-.day-timeline-editor-handle:hover {
-  opacity: 1 !important;
-  color: var(--text-muted);
-}
-
-.day-timeline-editor-handle.is-dragging {
-  opacity: 0.3;
-}
-
-/* Editor drop indicator */
+/* ── Editor drop indicator ──────────────────────────────────────── */
 .day-timeline-drop-indicator {
   position: fixed;
   height: 2px;
@@ -250,23 +353,4 @@
   z-index: 100;
   pointer-events: none;
   border-radius: 1px;
-}
-
-/* Editor drag ghost */
-.day-timeline-editor-ghost {
-  position: fixed;
-  top: -1000px;
-  left: -1000px;
-  padding: 4px 10px;
-  border-radius: 4px;
-  background: var(--interactive-accent);
-  color: var(--text-on-accent);
-  font-size: 12px;
-  font-weight: 500;
-  opacity: 0.9;
-  white-space: nowrap;
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  pointer-events: none;
 }
