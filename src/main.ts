@@ -229,6 +229,7 @@ function timerTick() {
     timer.remaining = 0;
     syncTimerDisplay();
     playChime();
+    showExercise(true);
   }
 }
 function startTimer() {
@@ -262,6 +263,75 @@ function playChime() {
       osc.start(t0); osc.stop(t0 + 0.5);
     });
   } catch (e) {}
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Exercise pause suggestions — module-level so they survive re-renders
+// ═══════════════════════════════════════════════════════════════════
+const EXERCISES = [
+  "10 push-ups",
+  "10 squats",
+  "10 lunges (each leg 5)",
+  "30 jumping jacks",
+  "15 calf raises",
+  "20 mountain climbers",
+  "20s plank",
+  "15 glute bridges",
+  "30 air punches marching",
+  "30 leg bouncing jacks",
+  "10 jump squats",
+  "20s mountain pose",
+  "10 leg swings (each leg 5)",
+  "10 side leg swings (each leg 5)",
+  "10 knee-to-elbows",
+  "10 table dips",
+  "20 arm rotations",
+  "10 cat-cows",
+  "10 side bends",
+  "20 high knees",
+  "20 butt kicks",
+  "10 front kicks",
+  "10 side kicks",
+  "10 reverse lunges",
+  "20 bouncing overhead punches",
+  "20 boxer shuffles",
+  "20 lateral steps",
+  "20 elbow-to-knee crunches",
+  "20 toe taps",
+  "20 standing cross punches",
+  "20 standing knee drives",
+  "20 skater taps",
+  "20 step jacks",
+  "20 power marches",
+  "20 squat pulses",
+  "20 alternating side reaches",
+  "20 fast feet",
+  "20 standing twists",
+  "20 side-to-side punches",
+  "20 wall push-offs",
+  "20 chest openers",
+  "20 running man shuffles",
+  "20 ghost jump rope",
+];
+const exercise = { current: null, visible: false, slotEl: null, textEl: null };
+
+function pickExercise() {
+  return EXERCISES[Math.floor(Math.random() * EXERCISES.length)];
+}
+function syncExerciseDisplay() {
+  if (!exercise.slotEl) return;
+  exercise.slotEl.style.display = exercise.visible ? "flex" : "none";
+  if (exercise.textEl)
+    exercise.textEl.setText(exercise.current ? `Try: ${exercise.current}` : "");
+}
+function showExercise(fresh) {
+  if (fresh || !exercise.current) exercise.current = pickExercise();
+  exercise.visible = true;
+  syncExerciseDisplay();
+}
+function toggleExercise() {
+  if (exercise.visible) { exercise.visible = false; syncExerciseDisplay(); }
+  else showExercise(true);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -355,6 +425,23 @@ function render(container, daily) {
   const resetBtn = timerEl.createSpan({ cls: "timer-reset", text: "↺" });
   resetBtn.title = "Reset timer";
   resetBtn.addEventListener("click", resetTimer);
+
+  const exSummon = timerEl.createSpan({ cls: "timer-exercise" });
+  setIcon(exSummon, "dumbbell");
+  exSummon.setAttribute("aria-label", "Exercise suggestion");
+  exSummon.title = "Exercise suggestion";
+  exSummon.addEventListener("click", () => toggleExercise());
+
+  // ── Exercise suggestion (movement break) ─────────────────────────
+  const exSlot = root.createDiv({ cls: "day-timeline-exercise" });
+  exercise.slotEl = exSlot;
+  exercise.textEl = exSlot.createSpan({ cls: "exercise-text" });
+  const exReroll = exSlot.createSpan({ cls: "exercise-reroll" });
+  setIcon(exReroll, "rotate-cw");
+  exReroll.setAttribute("aria-label", "Another exercise");
+  exReroll.title = "Another exercise";
+  exReroll.addEventListener("click", () => showExercise(true));
+  syncExerciseDisplay();
 
   // ── Pool ─────────────────────────────────────────────────────────
   const pool = root.createDiv({ cls: "day-timeline-pool" });

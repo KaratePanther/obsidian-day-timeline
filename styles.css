@@ -99,6 +99,54 @@
   color: var(--text-muted);
 }
 
+.timer-exercise {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  color: var(--text-faint);
+  padding: 0 2px;
+  border-radius: 3px;
+  transition: color 0.1s;
+}
+.timer-exercise:hover {
+  color: var(--text-muted);
+}
+.timer-exercise svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* ── Exercise suggestion row ─────────────────────────────────────── */
+.day-timeline-exercise {
+  display: none; /* toggled to flex by JS */
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-size: 12px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.day-timeline-exercise .exercise-text {
+  flex: 1;
+  min-width: 0;
+}
+.day-timeline-exercise .exercise-reroll {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  color: var(--text-faint);
+  border-radius: 3px;
+  transition: color 0.1s;
+}
+.day-timeline-exercise .exercise-reroll:hover {
+  color: var(--text-normal);
+}
+.day-timeline-exercise .exercise-reroll svg {
+  width: 13px;
+  height: 13px;
+}
+
 /* ── Pool ───────────────────────────────────────────────────────── */
 .day-timeline-pool {
   padding: 8px;

@@ -9,6 +9,7 @@ An Obsidian sidebar plugin that renders your daily note's tasks and time blocks 
   - Tasks from `Highlight`, `Key Tasks`, `Admin / Optional` (parsing stops at `Notes`).
   - Plain-bullet time blocks from a `## Schedule` section.
 - **Focus timer** in the header: click the time to set minutes (1–180, persisted to `localStorage`), `▶/⏸` play/pause, `↺` reset, ascending chime on completion.
+- **Movement breaks**: the dumbbell icon in the timer row toggles a random exercise suggestion (inline `Try: …` row); the `↻` icon rerolls. A fresh suggestion also auto-appears when the timer finishes. The exercise list mirrors the Visual Timer web app.
 - **Unscheduled pool** (tasks + schedule blocks), resizable by dragging its handle.
 - **Drag-and-drop scheduling**: drag from the pool onto the timeline to schedule; drag a block to move it; drag its top/bottom edge to resize; drag a block back to the pool to unschedule. 15-minute snapping.
 - **Editor drag handles** (`⠟` gutter widget): drag a task/schedule line straight from the markdown editor onto the timeline, or reorder lines; drag a timeline block into the editor to remove its time.
