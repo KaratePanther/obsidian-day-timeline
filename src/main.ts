@@ -383,6 +383,54 @@ function promptBlockName(onConfirm) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// Overlap layout — Apple-calendar style: greedy column packing, then
+// each block expands rightward into any free columns. Non-overlapping
+// blocks keep full width; only the overlapping region splits.
+// ═══════════════════════════════════════════════════════════════════
+function layoutOverlaps(blocks) {
+  if (blocks.length < 2) return;
+  const L = 4, R = 4, GAP = 2;           // must match .task-block left/right in styles.css
+  const sorted = blocks.slice().sort((a, b) => a.start - b.start || a.end - b.end);
+
+  let i = 0;
+  while (i < sorted.length) {
+    // Grow a cluster of chain-overlapping blocks
+    let clusterEnd = sorted[i].end, j = i + 1;
+    while (j < sorted.length && sorted[j].start < clusterEnd) {
+      clusterEnd = Math.max(clusterEnd, sorted[j].end);
+      j++;
+    }
+    const cluster = sorted.slice(i, j);
+    i = j;
+    if (cluster.length < 2) continue;    // lone block keeps full CSS width
+
+    // Greedy column assignment: first column free at this block's start
+    const cols = [];                     // cols[c] = last block placed in column c
+    for (const blk of cluster) {
+      let c = 0;
+      for (; c < cols.length; c++) if (cols[c].end <= blk.start) break;
+      blk._col = c;
+      cols[c] = blk;
+    }
+    const nCols = cols.length;
+
+    // Expand each block into contiguous free columns to its right
+    for (const blk of cluster) {
+      let span = 1;
+      for (let c = blk._col + 1; c < nCols; c++) {
+        const clash = cluster.some(o => o._col === c && o.start < blk.end && blk.start < o.end);
+        if (clash) break;
+        span++;
+      }
+      const colW = `((100% - ${L + R}px) / ${nCols})`;
+      blk.el.style.left  = `calc(${L}px + ${blk._col} * ${colW})`;
+      blk.el.style.width = `calc(${span} * ${colW} - ${GAP}px)`;
+      blk.el.style.right = "auto";
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // Render
 // ═══════════════════════════════════════════════════════════════════
 function render(container, daily) {
@@ -524,6 +572,7 @@ function render(container, daily) {
 
   // ── Task blocks on timeline ──────────────────────────────────────
   const taskBlocks = new Map();
+  const overlapBlocks = [];   // all timeline blocks, for Apple-style overlap layout
   if (daily) {
     for (const task of scheduled(daily)) {
       for (let si = 0; si < task.scheduledTimes.length; si++) {
@@ -548,6 +597,7 @@ function render(container, daily) {
         blk.createDiv({ cls: "task-block-resize" });
         if (task.checked) blk.addClass("is-completed");
         taskBlocks.set(`${task.id}:${si}`, blk);
+        overlapBlocks.push({ start: st.start.hour * 60 + st.start.minute, end: end.hour * 60 + end.minute, el: blk });
       }
     }
   }
@@ -571,9 +621,13 @@ function render(container, daily) {
           .createSpan({ cls: "task-block-text", text: trunc(sb.label, 40) });
         blk.createDiv({ cls: "task-block-resize" });
         schedBlocks.set(`${sb.id}:${si}`, blk);
+        overlapBlocks.push({ start: st.start.hour * 60 + st.start.minute, end: end.hour * 60 + end.minute, el: blk });
       }
     }
   }
+
+  // Resolve overlaps across all timeline blocks (tasks + schedule)
+  layoutOverlaps(overlapBlocks);
 
   // Now line
   const nowLine = slots.createDiv({ cls: "now-line" });
@@ -1242,6 +1296,32 @@ function findTaskLines(doc) {
   return out;
 }
 
+// All drag-handle lines (checkbox tasks anywhere + plain bullets under ## Schedule)
+function findDraggableLines(doc) {
+  const out = [];
+  let inSchedule = false;
+  for (let i = 1; i <= doc.lines; i++) {
+    const t = doc.line(i).text;
+    if (RE_SCHEDULE.test(t)) { inSchedule = true; continue; }
+    if (/^##\s+/.test(t))    { inSchedule = false; }
+    if (RE_TASK.test(t) || (inSchedule && RE_BLOCK.test(t))) out.push(i);
+  }
+  return out;
+}
+
+// Bullet-format conversions for cross-section moves
+const toCheckbox    = line => line.replace(/^(\s*)-\s+(?!\[[ xX]\])/, "$1- [ ] ");
+const toPlainBullet = line => line.replace(/^(\s*)-\s+\[[ xX]\]\s+/, "$1- ");
+
+// Heading of the section containing 0-based index `idx` in a lines array
+function sectionHeadingAt(lines, idx) {
+  for (let i = Math.min(idx, lines.length) - 1; i >= 0; i--) {
+    const m = lines[i].match(/^##\s+(.+?)\s*$/);
+    if (m) return m[1].trim();
+  }
+  return "";
+}
+
 const editorPlugin = ViewPlugin.fromClass(class {
   constructor(view) {
     this.view = view;
@@ -1332,19 +1412,23 @@ const editorPlugin = ViewPlugin.fromClass(class {
     }
 
     const doc = this.view.state.doc;
-    const taskLines = findTaskLines(doc);
-    if (!taskLines.length) return;
+    const dragLines = findDraggableLines(doc);
+    if (!dragLines.length) return;
+    const dragSet = new Set(dragLines);
     const positions = [];
-    for (const l of taskLines) {
+    for (const l of dragLines) {
       const coords = this.view.coordsAtPos(doc.line(l).from);
       if (coords) positions.push({ line: l, y: coords.top });
+      // "after" slot when this item is the last in its section (next line isn't another item)
+      const e = taskEndLine(doc, l);
+      const after = e + 1;
+      if (!dragSet.has(after)) {
+        const ac = after <= doc.lines
+          ? this.view.coordsAtPos(doc.line(after).from)
+          : this.view.coordsAtPos(doc.line(e).to);
+        if (ac) positions.push({ line: after, y: ac.top ?? ac.bottom });
+      }
     }
-    const lastLine = taskLines[taskLines.length - 1];
-    const lastEnd  = taskEndLine(doc, lastLine);
-    const afterCoords = lastEnd < doc.lines
-      ? this.view.coordsAtPos(doc.line(lastEnd + 1).from)
-      : this.view.coordsAtPos(doc.line(lastEnd).to);
-    if (afterCoords) positions.push({ line: lastEnd + 1, y: afterCoords.top || afterCoords.bottom });
     if (!positions.length) return;
 
     let best = positions[0];
@@ -1402,7 +1486,15 @@ const editorPlugin = ViewPlugin.fromClass(class {
     const moved = lines.splice(src, cnt);
     let ins = target - 1;
     if (target > endLine) ins -= cnt;
-    lines.splice(ins, 0, ...moved);
+
+    // Match bullet format to the destination section
+    const destHeading = sectionHeadingAt(lines, ins);
+    let outMoved = moved;
+    if (/^Schedule\b/.test(destHeading))
+      outMoved = moved.map(toPlainBullet);
+    else if (/^(Highlight|Key Tasks|Admin\s*\/?\s*Optional)/.test(destHeading))
+      outMoved = moved.map(toCheckbox);
+    lines.splice(ins, 0, ...outMoved);
 
     const newContent = lines.join("\n");
     let pos = 0;
